@@ -77,6 +77,7 @@ class Whixp extends WhixpBase {
     super.useIPv6,
     super.useTLS,
     super.disableStartTLS,
+    super.useWebSocket,
     super.pingKeepAlive,
     super.pingKeepAliveInterval,
     super.logger,
@@ -126,10 +127,20 @@ class Whixp extends WhixpBase {
     }
 
     /// Set [streamHeader] of declared transport for initial send.
-    transport
-      ..streamHeader =
-          "<stream:stream to='$host' xmlns:stream='$streamNamespace' xmlns='$defaultNamespace' xml:lang='$_language' version='1.0'>"
-      ..streamFooter = "</stream:stream>";
+    /// Use RFC 7395 framing for WebSocket connections, traditional stream for TCP
+    if (transport.connection.configuration.useWebSocket) {
+      // RFC 7395: XMPP over WebSocket uses <open> element
+      transport
+        ..streamHeader =
+            "<open xmlns='urn:ietf:params:xml:ns:xmpp-framing' to='$host' version='1.0'/>"
+        ..streamFooter = "<close xmlns='urn:ietf:params:xml:ns:xmpp-framing'/>";
+    } else {
+      // Traditional XMPP over TCP uses <stream:stream>
+      transport
+        ..streamHeader =
+            "<stream:stream to='$host' xmlns:stream='$streamNamespace' xmlns='$defaultNamespace' xml:lang='$_language' version='1.0'>"
+        ..streamFooter = "</stream:stream>";
+    }
 
     final fullJID = session?.bindJID?.full ?? transport.boundJID?.full;
 

@@ -23,6 +23,7 @@ import 'package:whixp/src/stanza/presence.dart';
 import 'package:whixp/src/stanza/stanza.dart';
 import 'package:whixp/src/stream.dart';
 import 'package:whixp/src/utils/utils.dart';
+import 'package:whixp/src/websocket_connection.dart';
 
 import 'package:xml/xml.dart' as xml;
 
@@ -82,6 +83,11 @@ class Transport {
     /// a TLS connection on the client side. Defaults to `false`
     bool disableStartTLS = false,
 
+    /// Enable WebSocket connection (RFC 7395). When true, connects via WebSocket
+    /// protocol instead of direct TCP socket. The [host] parameter should be a
+    /// WebSocket URL (e.g., wss://example.com:5280/websocket). Defaults to `false`
+    bool useWebSocket = false,
+
     /// If `true`, periodically send a whitespace character over the wire to
     /// keep the connection alive
     bool pingKeepAlive = true,
@@ -124,6 +130,7 @@ class Transport {
         useIPv6: useIPv6,
         useTLS: useTLS,
         disableStartTLS: disableStartTLS,
+        useWebSocket: useWebSocket,
         endSessionOnDisconnect: endSessionOnDisconnect,
         pingKeepAlive: pingKeepAlive,
         pingKeepAliveInterval: pingKeepAliveInterval,
@@ -144,6 +151,7 @@ class Transport {
     required bool useIPv6,
     required bool useTLS,
     required bool disableStartTLS,
+    required bool useWebSocket,
     required this.pingKeepAlive,
     required this.pingKeepAliveInterval,
     required io.SecurityContext? context,
@@ -159,6 +167,7 @@ class Transport {
         port: port,
         useTLS: useTLS,
         disableStartTLS: disableStartTLS,
+        useWebSocket: useWebSocket,
         socketOptions: ConnectaListener(
           onData: _dataReceived,
           combineWhile: _combineWhile,
@@ -174,7 +183,9 @@ class Transport {
       (state) => emit<TransportState>('state', data: state),
       onConnectionStartCallback: () async {
         /// Initialize internal used database for Whixp.
-        await HiveController.initialize(internalDatabasePath);
+        await HiveController.initialize(
+          internalDatabasePath.isEmpty ? null : internalDatabasePath,
+        );
         _waitingQueueController = async.StreamController<Packet>();
 
         /// Reinit XML parser.

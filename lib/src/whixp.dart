@@ -44,6 +44,11 @@ abstract class WhixpBase {
     /// a TLS connection on the client side. Defaults to `false`
     bool disableStartTLS = false,
 
+    /// Enable WebSocket connection (RFC 7395). When true, connects via WebSocket
+    /// protocol instead of direct TCP socket. The [host] parameter should be a
+    /// WebSocket URL (e.g., wss://example.com:5280/websocket). Defaults to `false`
+    bool useWebSocket = false,
+
     /// If `true`, periodically send a whitespace character over the wire to
     /// keep the connection alive
     bool pingKeepAlive = true,
@@ -78,7 +83,7 @@ abstract class WhixpBase {
 
     /// Whether to end session on disconnect method or not. Defaults to `true`.
     bool endSessionOnDisconnect = true,
-    String internalDatabasePath = '/',
+    String internalDatabasePath = '',
     ReconnectionPolicy? reconnectionPolicy,
   }) {
     _streamNamespace = WhixpUtils.getNamespace('JABBER_STREAM');
@@ -140,6 +145,7 @@ abstract class WhixpBase {
       port: port,
       useIPv6: useIPv6,
       disableStartTLS: disableStartTLS,
+      useWebSocket: useWebSocket,
       boundJID: _boundJID,
       dnsService: dnsService,
       useTLS: useTLS,

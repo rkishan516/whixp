@@ -1,3 +1,12 @@
+# 2.1.4
+
+- **WebSocket Support**
+  - Added WebSocket connection support (RFC 7395) for XMPP over WebSocket
+  - New `useWebSocket` parameter in `Whixp` and `WhixpBase` constructors
+  - Supports both secure (wss://) and insecure (ws://) WebSocket connections
+  - Full WebSocket URL support or automatic URL construction from host:port
+  - Example code available in `example/websocket_example.dart`
+
 # 2.1.3
 
 - **MongooseIM**

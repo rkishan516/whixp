@@ -57,6 +57,9 @@ class Connection {
   /// attempt to the server.
   Connecta? _connecta;
 
+  /// WebSocket connection instance for WebSocket-based connections
+  WebSocketConnection? _webSocketConnection;
+
   /// [io.ConnectionTask] keeps current connection task and can be used to
   /// cancel when it is necessary.
   late io.ConnectionTask<io.Socket>? _connectionTask;
@@ -76,11 +79,49 @@ class Connection {
 
   /// Creates a new socket and connects to the server.
   Future<void> start({void Function()? onConnectionFailure}) async {
-    final record = await _parseDNSRecord();
     _eventWhenConnected = TransportState.connected;
 
     await _reconnectionPolicy?.reset();
     await _reconnectionPolicy?.setShouldReconnect(true);
+
+    /// Handle WebSocket connections differently
+    if (configuration.useWebSocket) {
+      try {
+        /// For WebSocket, the host should be a full URL
+        final wsUrl = configuration.host.startsWith('ws://') ||
+                configuration.host.startsWith('wss://')
+            ? configuration.host
+            : 'wss://${configuration.host}:${configuration.port}/websocket';
+
+        Log.instance.info('Trying to connect to WebSocket: $wsUrl');
+
+        _webSocketConnection = WebSocketConnection(
+          url: wsUrl,
+          onData: (data) => configuration.socketOptions.onData?.call(data),
+          onDone: () => configuration.socketOptions.onDone?.call(),
+          onError: (error) =>
+              configuration.socketOptions.onError?.call(error, StackTrace.current),
+          changeStateCallback: changeStateCallback,
+          securityContext: configuration.securityContext,
+          onBadCertificateCallback: configuration.onBadCertificateCallback,
+          connectionTimeout: configuration.connectionTimeout,
+        );
+
+        await _webSocketConnection!.connect();
+        await _onStart();
+      } catch (exception) {
+        Log.instance.error('Error occurred while connecting to WebSocket');
+        handleError(exception);
+        abort(
+          callback: onConnectionFailure,
+          state: TransportState.connectionFailure,
+        );
+      }
+      return;
+    }
+
+    /// Handle traditional TCP/TLS connections
+    final record = await _parseDNSRecord();
 
     if (record != null) {
       final host = record.firstValue;
@@ -154,13 +195,17 @@ class Connection {
       } on Exception {
         /// pass
       } finally {
-        _connecta?.destroy();
+        if (_webSocketConnection != null) {
+          await _webSocketConnection?.close();
+        } else {
+          _connecta?.destroy();
+        }
         cancelConnectionAttempt();
         changeStateCallback.call(TransportState.disconnected);
       }
     }
 
-    if (_connecta != null && consume) {
+    if ((_connecta != null || _webSocketConnection != null) && consume) {
       return consumeSend();
     } else {
       return abort();
@@ -355,6 +400,7 @@ class Connection {
     _parseConnectionConfiguration(newHost: host, newPort: port);
     _eventWhenConnected = TransportState.connected;
     _connecta = null;
+    _webSocketConnection = null;
     _connectionTask = null;
   }
 
@@ -366,7 +412,15 @@ class Connection {
     void Function()? callback,
     TransportState state = TransportState.killed,
   }) {
-    if (_connecta != null) {
+    if (_webSocketConnection != null) {
+      try {
+        _webSocketConnection?.destroy();
+      } catch (_) {
+        Log.instance.error('WebSocket is not initialized yet, aborting...');
+      }
+      changeStateCallback.call(state);
+      cancelConnectionAttempt();
+    } else if (_connecta != null) {
       try {
         _connecta?.destroy();
       } catch (_) {
@@ -383,6 +437,7 @@ class Connection {
     currentConnectionAttempt = null;
     _connectionTask?.cancel();
     _connecta = null;
+    _webSocketConnection = null;
   }
 
   void _parseConnectionConfiguration({String? newHost, int? newPort}) {
@@ -393,10 +448,14 @@ class Connection {
 
   /// Send raw data using socket.
   void send(String data) {
-    final raw = WhixpUtils.utf8Encode(data);
     Log.instance.debug('SEND: $data');
 
-    if (_connecta != null) _connecta?.send(raw);
+    if (_webSocketConnection != null) {
+      _webSocketConnection?.send(data);
+    } else if (_connecta != null) {
+      final raw = WhixpUtils.utf8Encode(data);
+      _connecta?.send(raw);
+    }
   }
 
   /// Use this method if there is a need to explicitly set reconnection.
@@ -404,7 +463,10 @@ class Connection {
       _reconnectionPolicy?.setShouldReconnect(value);
 
   /// Indicates to the security of connection.
-  bool get isConnectionSecure => _connecta?.isConnectionSecure ?? false;
+  bool get isConnectionSecure =>
+      _webSocketConnection?.isSecure ??
+      _connecta?.isConnectionSecure ??
+      false;
 }
 
 class ConnectionConfiguration {
@@ -421,6 +483,7 @@ class ConnectionConfiguration {
     required this.disableStartTLS,
     required this.useTLS,
     required this.useIPv6WhenResolvingDNS,
+    required this.useWebSocket,
     this.service,
     this.onBadCertificateCallback,
   });
@@ -461,6 +524,10 @@ class ConnectionConfiguration {
   /// lookup.
   final bool useIPv6WhenResolvingDNS;
 
+  /// Enable WebSocket connection (RFC 7395). When true, uses WebSocket protocol
+  /// instead of direct TCP socket.
+  final bool useWebSocket;
+
   /// The service name to check with DNS SRV records. For example, setting this
   /// to "xmpp-client" will query the "_xmpp-clilent._tcp" service.
   final String? service;
@@ -481,6 +548,7 @@ class ConnectionConfiguration {
         disableStartTLS,
         useTLS,
         useIPv6WhenResolvingDNS,
+        useWebSocket,
         service,
         onBadCertificateCallback,
       ]);
@@ -497,6 +565,7 @@ class ConnectionConfiguration {
         other.disableStartTLS == disableStartTLS &&
         other.useTLS == useTLS &&
         other.useIPv6WhenResolvingDNS &&
+        other.useWebSocket == useWebSocket &&
         other.service == service &&
         other.onBadCertificateCallback == onBadCertificateCallback;
   }

@@ -81,11 +81,17 @@ class StreamParser extends StreamTransformerBase<String, List<StreamObject>> {
   /// The selectors.
   _ChunkedConversionBuffer<List<XmlEvent>, XmlEvent> _childSelector =
       _ChunkedConversionBuffer<List<XmlEvent>, XmlEvent>(
-    XmlSubtreeSelector((event) => event.qualifiedName != 'stream:stream'),
+    XmlSubtreeSelector((event) =>
+        event.qualifiedName != 'stream:stream' &&
+        event.qualifiedName != 'open' &&
+        event.qualifiedName != 'close'),
   );
   _ChunkedConversionBuffer<List<XmlEvent>, XmlEvent> _streamHeaderSelector =
       _ChunkedConversionBuffer<List<XmlEvent>, XmlEvent>(
-    XmlSubtreeSelector((event) => event.qualifiedName == 'stream:stream'),
+    XmlSubtreeSelector((event) =>
+        event.qualifiedName == 'stream:stream' ||
+        event.qualifiedName == 'open' ||
+        event.qualifiedName == 'close'),
   );
 
   void reset() {
@@ -118,10 +124,16 @@ class StreamParser extends StreamTransformerBase<String, List<StreamObject>> {
       const XmlNodeDecoder(),
     );
     _childSelector = _ChunkedConversionBuffer<List<XmlEvent>, XmlEvent>(
-      XmlSubtreeSelector((event) => event.qualifiedName != 'stream:stream'),
+      XmlSubtreeSelector((event) =>
+          event.qualifiedName != 'stream:stream' &&
+          event.qualifiedName != 'open' &&
+          event.qualifiedName != 'close'),
     );
     _streamHeaderSelector = _ChunkedConversionBuffer<List<XmlEvent>, XmlEvent>(
-      XmlSubtreeSelector((event) => event.qualifiedName == 'stream:stream'),
+      XmlSubtreeSelector((event) =>
+          event.qualifiedName == 'stream:stream' ||
+          event.qualifiedName == 'open' ||
+          event.qualifiedName == 'close'),
     );
   }
 
@@ -141,21 +153,25 @@ class StreamParser extends StreamTransformerBase<String, List<StreamObject>> {
           continue;
         }
 
-        if (event.name != 'stream:stream') {
-          continue;
-        } else {
-          if (event.attributes.isEmpty) objects.add(StreamFooter());
-        }
-
-        objects.add(
-          StreamHeader(
-            Map<String, String>.fromEntries(
-              event.attributes.map(
-                (attributes) => MapEntry(attributes.name, attributes.value),
+        // Handle both traditional <stream:stream> and RFC 7395 <open>/<close>
+        if (event.name == 'stream:stream' || event.name == 'open') {
+          if (event.attributes.isEmpty) {
+            objects.add(StreamFooter());
+          } else {
+            objects.add(
+              StreamHeader(
+                Map<String, String>.fromEntries(
+                  event.attributes.map(
+                    (attributes) => MapEntry(attributes.name, attributes.value),
+                  ),
+                ),
               ),
-            ),
-          ),
-        );
+            );
+          }
+        } else if (event.name == 'close') {
+          // RFC 7395: <close> indicates stream end
+          objects.add(StreamFooter());
+        }
       }
 
       // Process the children of the <stream:stream> element.
