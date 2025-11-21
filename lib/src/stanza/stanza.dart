@@ -68,6 +68,8 @@ abstract class Stanza with Packet {
       return InboxFin.fromXML(node);
     } else if (tag == inboxResultTag) {
       return InboxResult.fromXML(node);
+    } else if (tag == pingTag) {
+      return PingStanza.fromXML(node);
     } else {
       throw WhixpInternalException.stanzaNotFound(
         node.localName,
@@ -116,4 +118,30 @@ abstract class IQStanza extends Stanza {
   ///
   /// Saves the tag in the given format "{namespace}name".
   String get tag;
+}
+
+/// XEP-0199 Ping namespace
+const _pingNamespace = 'urn:xmpp:ping';
+
+/// XEP-0199 Ping Stanza
+///
+/// Represents a ping element used to check server/client connectivity.
+class PingStanza extends IQStanza {
+  const PingStanza();
+
+  /// Creates a PingStanza from an XML element
+  factory PingStanza.fromXML(xml.XmlElement _) => const PingStanza();
+
+  @override
+  String get name => 'ping';
+
+  @override
+  String get namespace => _pingNamespace;
+
+  @override
+  String get tag => pingTag;
+
+  @override
+  xml.XmlElement toXML() =>
+      WhixpUtils.xmlElement('ping', namespace: _pingNamespace);
 }

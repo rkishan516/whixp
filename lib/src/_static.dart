@@ -69,6 +69,7 @@ String get forwardedTag => '{urn:xmpp:forward:0}forwarded';
 String get inboxQueryTag => '{erlang-solutions.com:xmpp:inbox:0}inbox';
 String get inboxFinTag => '{erlang-solutions.com:xmpp:inbox:0}fin';
 String get inboxResultTag => '{erlang-solutions.com:xmpp:inbox:0}result';
+String get pingTag => '{urn:xmpp:ping}ping';
 
 Set<String> get presenceTypes => <String>{
       'subscribe',

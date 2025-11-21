@@ -60,6 +60,11 @@ class Router {
     error.code = 501;
     error.type = errorCancel;
     error.reason = 'feature-not-implemented';
+
+    // For IQ response: set 'to' to original sender, clear 'from' (server fills it)
+    iq.to = iq.from;
+    iq.from = null;
+
     iq.makeError(error);
     Transport.instance().send(iq);
   }

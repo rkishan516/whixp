@@ -186,6 +186,9 @@ abstract class WhixpBase {
       ..registerHandler(
         Handler('Stream Error', _handleStreamError)..packet('stream_error'),
       );
+
+    // Register XEP-0199 Ping handler
+    PingPlugin.register();
   }
 
   late final Transport _transport;
@@ -434,6 +437,30 @@ abstract class WhixpBase {
       ..from = messageFrom;
 
     Transport.instance().send(message.makeDisplayed(messageID));
+  }
+
+  /// Sends a chat state notification (XEP-0085) to the recipient.
+  ///
+  /// Valid states: 'composing', 'paused', 'active', 'inactive', 'gone'
+  ///
+  /// ### Example:
+  /// ```xml
+  /// <message to='juliet@capulet.lit' type='chat'>
+  ///   <composing xmlns='http://jabber.org/protocol/chatstates'/>
+  /// </message>
+  /// ```
+  void sendChatState(
+    JabberID messageTo, {
+    required String state,
+    JabberID? messageFrom,
+    MessageType type = MessageType.chat,
+  }) {
+    final message = Message()
+      ..to = messageTo
+      ..from = messageFrom
+      ..type = type.name;
+
+    Transport.instance().send(message.makeChatState(state));
   }
 
   /// Sends stanza via [Transport] instance.

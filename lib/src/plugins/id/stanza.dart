@@ -54,7 +54,7 @@ class OriginID extends MessageStanza {
     attributes['id'] = id;
 
     return WhixpUtils.xmlElement(
-      'success',
+      name,
       namespace: 'urn:xmpp:sid:0',
       attributes: attributes,
     );
