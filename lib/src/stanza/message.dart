@@ -116,11 +116,8 @@ class Message extends Stanza with Attributes {
 
             payloads.add(stanza);
           } on WhixpException {
-            if (child.localName.isNotEmpty && child.attributes.isNotEmpty) {
-              final extension = MessageExtension(child.localName);
-              for (final attribute in child.attributes) {
-                extension.addAttribute(attribute.localName, attribute.value);
-              }
+            if (child.localName.isNotEmpty) {
+              final extension = MessageExtension.fromXML(child);
               extensions.add(extension);
             }
           }
@@ -238,4 +235,23 @@ class Message extends Stanza with Attributes {
 /// An extension for the message that can be added beside of the message stanza.
 class MessageExtension extends Node {
   MessageExtension(super.name);
+
+  /// Constructs a message extension from an XML element node.
+  ///
+  /// This properly parses child elements unlike the default constructor.
+  factory MessageExtension.fromXML(xml.XmlElement node) {
+    final extension = MessageExtension(node.localName);
+
+    // Copy attributes
+    for (final attribute in node.attributes) {
+      extension.addAttribute(attribute.localName, attribute.value);
+    }
+
+    // Parse child elements recursively
+    for (final child in node.children.whereType<xml.XmlElement>()) {
+      extension.nodes.add(Node.fromXML(child));
+    }
+
+    return extension;
+  }
 }
