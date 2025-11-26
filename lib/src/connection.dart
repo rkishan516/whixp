@@ -448,8 +448,6 @@ class Connection {
 
   /// Send raw data using socket.
   void send(String data) {
-    Log.instance.debug('SEND: $data');
-
     if (_webSocketConnection != null) {
       _webSocketConnection?.send(data);
     } else if (_connecta != null) {

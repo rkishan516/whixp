@@ -313,15 +313,32 @@ class Transport {
     _scheduledEvents = <String, async.Timer>{};
   }
 
-  /// Begin sending whitespace periodically to keep the connection alive.
+  /// Begin sending XEP-0199 ping periodically to keep the connection alive.
   void _startKeepAlive() {
     Log.instance.info('Starting Ping keep alive...');
     if (pingKeepAlive) {
       _keepAliveTimer = async.Timer.periodic(
         Duration(seconds: pingKeepAliveInterval),
-        (_) => send(const SMRequest()),
+        (_) => _sendKeepAlivePing(),
       );
     }
+  }
+
+  /// Sends an XEP-0199 ping to the server for keepalive.
+  void _sendKeepAlivePing() {
+    final serverJid = boundJID?.domain;
+    if (serverJid == null) {
+      Log.instance.warning('Cannot send keepalive ping: no bound JID');
+      return;
+    }
+
+    final iq = IQ(generateID: true)
+      ..type = 'get'
+      ..to = JabberID(serverJid)
+      ..payload = const PingStanza();
+
+    Log.instance.info('Sending XEP-0199 ping: ${iq.toXMLString()}');
+    send(iq);
   }
 
   /// Creates a new socket and connect to the server.
