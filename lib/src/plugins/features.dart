@@ -11,6 +11,7 @@ export 'bind.dart';
 export 'mechanisms/feature.dart';
 export 'sm/feature.dart';
 export 'starttls.dart';
+export 'xmpp_session.dart';
 
 /// Represents stream features stanza.
 ///

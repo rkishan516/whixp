@@ -189,24 +189,14 @@ class Whixp extends WhixpBase {
     /// Attach new [Session] manager for this connection.
     session = Session(features);
     if (StreamFeatures.supported.contains('mechanisms')) {
-      /// If sm is not supported by the server, then add binding feature.
-      if (!features.doesStreamManagement) {
-        registerFeature('bind', (_) => session!.bind(), order: 150);
+      registerFeature('bind', (_) => session!.bind(), order: 150);
+      if (features.doesStreamManagement) {
+        registerFeature(
+          'sm',
+          (_) => session!.enableStreamManagement(_onStreamEnabled),
+          order: 200,
+        );
       }
-      registerFeature(
-        'sm',
-        (_) => session!.resume(
-          session?.bindJID?.full ?? transport.boundJID?.full,
-          onResumeDone: () => transport
-            ..removeHandler('SM Resume Handler')
-            ..removeHandler('SM Enable Handler'),
-          onResumeFailed: () {
-            Log.instance.warning('Stream resumption failed');
-            return session!.enableStreamManagement(_onStreamEnabled);
-          },
-        ),
-        order: 100,
-      );
     }
 
     for (final feature in streamFeatureOrder) {

@@ -33,6 +33,10 @@ class Session {
     final result = await iq.send();
     if (result.payload != null && result.error == null) {
       bindJID = JabberID((result.payload! as Bind).jid);
+
+      // Establish session after successful bind
+      await _establishSession();
+
       if (!features.doesStreamManagement) {
         Transport.instance().emit('startSession');
       }
@@ -42,38 +46,14 @@ class Session {
     return false;
   }
 
-  Future<bool> resume(
-    String? fullJID, {
-    required void Function() onResumeDone,
-    required Future<bool> Function() onResumeFailed,
-  }) async {
-    if (fullJID?.isEmpty ?? true) return false;
-    if (!features.doesStreamManagement) return false;
-    Transport.instance()
-        .callbacksBeforeStanzaSend
-        .add((stanza) async => _handleOutgoing(fullJID, stanza as Stanza));
-    state = await StreamManagement.getSMStateFromLocal(fullJID);
-    if (state == null) return onResumeFailed.call();
+  Future<void> _establishSession() async {
+    final iq = IQ(generateID: true);
+    iq.type = iqTypeSet;
+    iq.payload = const XMPPSession();
 
-    final resume = SMResume(h: state?.handled, previd: state?.id);
-
-    final result = await Transport.instance().sendAwait<SMResumed, SMFailed>(
-      'SM Resume Handler',
-      resume,
-      'sm:resumed',
-      failurePacket: 'sm:failed',
-    );
-
-    if (result != null) {
-      if (result is SMFailed) {
-        Log.instance.warning('SM failed: ${result.cause?.content}');
-      } else {
-        onResumeDone.call();
-        Transport.instance().emit('startSession');
-      }
-      return false;
-    } else {
-      return await onResumeFailed.call();
+    final result = await iq.send();
+    if (result.error != null) {
+      Log.instance.warning('Session establishment failed: ${result.error}');
     }
   }
 
@@ -161,21 +141,6 @@ class Session {
 
     state = state?.copyWith(lastAck: packet.h, sequence: sequence);
     await saveSMState(full, state);
-  }
-
-  Future<Stanza> _handleOutgoing(String? fullJID, Stanza stanza) async {
-    if (!enabledOut) return stanza;
-    if (fullJID?.isEmpty ?? true) return stanza;
-
-    if (stanza is Message || stanza is IQ || stanza is Presence) {
-      final sequence = ((state?.sequence ?? 0) + 1) % _seq;
-      state = state?.copyWith(sequence: sequence);
-      await StreamManagement.saveUnackedToLocal(sequence, stanza);
-      await saveSMState(fullJID, state);
-      request();
-    }
-
-    return stanza;
   }
 
   Future<int?> increaseInbound(String? full) async {
